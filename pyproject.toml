@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "temporal-jacobians"
+version = "0.1.0"
+description = "Temporal Jacobian features and event-aligned task-fMRI encoding"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+fmri = ["nibabel>=5.1"]
+
+[project.scripts]
+temporal-jacobians = "temporal_jacobians.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
