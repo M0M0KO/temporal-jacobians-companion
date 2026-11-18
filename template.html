@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temporal Jacobians | Reproduction companion</title>
+<style>
+  :root { color-scheme: light; font-family: "Instrument Sans", system-ui, sans-serif; color: #17262c; background: #f2f5f4; }
+  body { margin: 0; }
+  main { width: min(900px, calc(100% - 2rem)); margin: 3rem auto; }
+  h1 { font-size: clamp(2rem, 6vw, 3.4rem); letter-spacing: -.055em; line-height: 1.05; margin: 0 0 .6rem; }
+  h2 { margin: .3rem 0 .5rem; font-size: 1.35rem; }
+  p { max-width: 68ch; line-height: 1.55; margin: .5rem 0 1rem; }
+  .block { background: #fff; border: 1px solid #d6dfde; border-radius: 14px; padding: 1.1rem 1.3rem; margin: 1rem 0; }
+  button { background: #075967; color: #fff; border: 0; padding: .65rem .9rem; border-radius: 7px; cursor: pointer; font: inherit; }
+  button:hover { background: #074653; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #de921f; outline-offset: 3px; }
+  label { display: inline-block; margin: 0 .8rem .6rem 0; }
+  select, input { padding: .3rem; font: inherit; }
+  input { width: 5rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 0; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: .42rem .35rem; border-bottom: 1px solid #e0e7e6; }
+  th { font-size: .88rem; }
+  .caption { color: #4e666c; font-size: .88rem; }
+  a { color: #0b5967; text-underline-offset: .15em; }
+  @media (max-width: 600px) { main { margin: 1.25rem auto; } .block { padding: .8rem; } th, td { font-size: .85rem; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Temporal Jacobians</h1>
+    <p>Recompute the reported summary statistics from the public tables, then test a temporal Jacobian on a small dynamical system.</p>
+  </header>
+  <section class="block" aria-labelledby="synthetic-heading">
+    <h2 id="synthetic-heading">Synthetic recovery</h2>
+    <p>Compare direct measurement, prediction of fitted-model perturbations, and complete generator recovery across 60 cohorts.</p>
+    <button id="run-synthetic">Recompute recovery summary</button>
+    <div id="synthetic-result" aria-live="polite"></div>
+  </section>
+  <section class="block" aria-labelledby="behavior-heading">
+    <h2 id="behavior-heading">Human behavioral prediction</h2>
+    <p>Check which of the 24 published 90% intervals fall inside the original equivalence band of ±0.005 nats per event.</p>
+    <button id="run-behavior">Check behavioral equivalence</button>
+    <div id="behavior-result" aria-live="polite"></div>
+  </section>
+  <section class="block" aria-labelledby="demo-heading">
+    <h2 id="demo-heading">Run a two-state example</h2>
+    <p>Choose a time horizon and perturbation. The simulation compares the derivative prediction with an explicit intervention and recomputes influence geometry after an affine coordinate change.</p>
+    <label>Step horizon <select id="horizon"><option>1</option><option>2</option><option>4</option><option>8</option><option>16</option></select></label>
+    <label>Perturbation <input id="magnitude" type="number" min="0.001" max="0.5" step="0.001" value="0.05"></label>
+    <button id="run-demo">Run example</button>
+    <div id="demo-result" aria-live="polite"></div>
+  </section>
+  <p class="caption">Public-table checks reuse the published cohort summaries, intervals and event count. Model training and participant-level bootstraps require the frozen analysis inputs. The two-state simulation is an illustrative calculation.</p>
+  <p class="caption"><a href="https://github.com/pwa209/Temporal-Jacobians-predict-fitted-model-interventions-without-recovering-known-latent-dynamics/tree/6233df2584e2176fe65794a3b741c8bda2c98605">Source tables and analysis code</a></p>
+</main>
+<script type="application/json" id="source-data">__PUBLIC_FROZEN_TABLES__</script>
+<script>
+"use strict";
+const source = JSON.parse(document.querySelector("#source-data").textContent);
+const element = id => document.getElementById(id);
+const number = value => Number(value);
+const format = (value, digits = 5) => value.toFixed(digits);
+
+function putResult(id, summary, headings, rows) {
+  const container = element(id);
+  const paragraph = document.createElement("p");
+  paragraph.textContent = summary;
+  const table = document.createElement("table");
+  const header = table.createTHead().insertRow();
+  for (const heading of headings) {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = heading;
+    header.appendChild(cell);
+  }
+  const body = table.createTBody();
+  for (const row of rows) {
+    const entry = body.insertRow();
+    for (const value of row) entry.insertCell().textContent = String(value);
+  }
+  container.replaceChildren(paragraph, table);
+}
+
+function recoveryResults() {
+  return [1, 2, 4].map(dimension => {
+    const exact = source.exact.find(r => number(r.true_dimension) === dimension && r.condition === "Exact known system");
+    const cohorts = source.cohorts.filter(r => number(r.true_dimension) === dimension);
+    const finite = cohorts.filter(r => number(r.finite_effect_r2) >= .80 && number(r.finite_sign_accuracy) >= .90).length;
+    const recovered = cohorts.filter(r => r.complete_recovery === "TRUE").length;
+    return {dimension, exact: number(exact.successes), finite, recovered, total: cohorts.length};
+  });
+}
+
+function behavioralResults() {
+  const ranked = [...source.human].sort((a, b) => number(a.estimate) - number(b.estimate));
+  return {
+    ranked,
+    equivalent: ranked.filter(r => number(r.ci_low) >= -number(r.equivalence_margin) &&
+      number(r.ci_high) <= number(r.equivalence_margin)).length
+  };
+}
+
+function twoStateExample(horizon, perturbation) {
+  const gain = [.8 ** horizon, .5 ** horizon];
+  function readout(h) {
+    return Math.tanh(gain[0] * h[0] + gain[1] * h[1]);
+  }
+  const state = [.4, -.2];
+  const displaced = [state[0] + .6 * perturbation, state[1] + .8 * perturbation];
+  const factor = 1 - readout(state) ** 2;
+  const j = gain.map(g => factor * g);
+  const prediction = perturbation * (.6 * j[0] + .8 * j[1]);
+  const measured = readout(displaced) - readout(state);
+  // h' = A h + b, A = [[2, 1], [0, 1]], Sigma = diag(1, .25).
+  // J' = J A^-1 and Sigma' = A Sigma A^T.
+  const original = j[0] ** 2 + .25 * j[1] ** 2;
+  const [a, b] = [j[0] / 2, j[1] - j[0] / 2];
+  const transformed = 4.25 * a ** 2 + .5 * a * b + .25 * b ** 2;
+  return {prediction, measured, error: Math.abs(measured - prediction), original, transformed};
+}
+
+element("run-synthetic").addEventListener("click", () => {
+  const results = recoveryResults();
+  const totals = key => results.reduce((sum, row) => sum + row[key], 0);
+  putResult("synthetic-result",
+    `${totals("exact")}/${totals("total")} exact measurements, ${totals("finite")}/${totals("total")} fitted-model perturbation passes, and ${totals("recovered")}/${totals("total")} complete generator recoveries.`,
+    ["True dimension", "Exact measurement", "Perturbation pass", "Complete recovery"],
+    results.map(r => [r.dimension, `${r.exact}/${r.total}`, `${r.finite}/${r.total}`, `${r.recovered}/${r.total}`]));
+});
+
+element("run-behavior").addEventListener("click", () => {
+  const {ranked, equivalent} = behavioralResults();
+  putResult("behavior-result", `${equivalent}/${ranked.length} equivalent. ${ranked[0].n_participants} participants and ${source.humanEvents.toLocaleString("en-US")} common scored events.`,
+    ["Architecture", "Excess log loss", "90% interval"],
+    ranked.slice(0, 6).map(r => [r.specification, format(number(r.estimate)),
+      `[${format(number(r.ci_low))}, ${format(number(r.ci_high))}]`]));
+});
+
+element("run-demo").addEventListener("click", () => {
+  if (!element("magnitude").reportValidity() || !element("magnitude").value) return;
+  const step = number(element("horizon").value);
+  const size = number(element("magnitude").value);
+  const r = twoStateExample(step, size);
+  putResult("demo-result", `Horizon ${step}. Perturbation scale ${size}.`,
+    ["Quantity", "Value"], [
+      ["Predicted output change", format(r.prediction, 8)],
+      ["Simulated output change", format(r.measured, 8)],
+      ["Absolute approximation error", r.error.toExponential(3)],
+      ["Influence geometry", format(r.original, 8)],
+      ["Influence geometry after coordinate change", format(r.transformed, 8)]
+    ]);
+});
+
+if (new URLSearchParams(location.search).has("selftest")) {
+  for (const button of ["run-synthetic", "run-behavior", "run-demo"]) element(button).click();
+  const r = twoStateExample(4, .001);
+  const passed = [
+    element("synthetic-result").textContent.includes("3/60 complete"),
+    element("behavior-result").textContent.includes("0/24 equivalent") &&
+      element("behavior-result").textContent.includes("0.02522"),
+    element("demo-result").textContent.includes("Simulated output change"),
+    Math.abs(r.original - r.transformed) < 1e-12 && r.error < 1e-6
+  ].every(Boolean);
+  document.documentElement.dataset.selftest = passed ? "pass" : "fail";
+}
+</script>
+</body>
+</html>
