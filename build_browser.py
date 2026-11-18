@@ -19,6 +19,17 @@ def read_table(name):
         return list(csv.DictReader(f))
 
 
+def recovery_passes(row):
+    truth = int(row["true_dimension"])
+    return (
+        abs(int(row["selected_minimal_dimension"]) - truth) <= 1
+        and abs(int(row["recovered_j_rank"]) - truth) <= 1
+        and float(row["output_influence_overlap"]) >= 0.8
+        and float(row["finite_effect_r2"]) >= 0.8
+        and float(row["finite_sign_accuracy"]) >= 0.9
+    )
+
+
 def embedded_data():
     data = {key: read_table(name) for key, name in TABLES.items()}
     summary = json.loads((SOURCE / "analysis_summary.json").read_text(encoding="utf-8-sig"))
@@ -27,7 +38,8 @@ def embedded_data():
     exact = [row for row in data["exact"] if row["condition"] == "Exact known system"]
     assert sum(int(row["successes"]) for row in exact) == benchmark["exact_recovered"]
     assert len(data["cohorts"]) == benchmark["learned_total"]
-    assert sum(row["complete_recovery"] == "TRUE" for row in data["cohorts"]) == benchmark["learned_recovered"]
+    assert all(recovery_passes(row) == (row["complete_recovery"] == "TRUE") for row in data["cohorts"])
+    assert sum(map(recovery_passes, data["cohorts"])) == benchmark["learned_recovered"]
     assert all(float(row["finite_effect_r2"]) >= 0.8 and float(row["finite_sign_accuracy"]) >= 0.9
                for row in data["cohorts"])
     assert len(data["human"]) == 24 and all(int(x["n_participants"]) == human["participants"] for x in data["human"])
