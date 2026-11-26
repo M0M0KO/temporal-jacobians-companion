@@ -1,0 +1,63 @@
+{
+  "synthetic": {
+    "exact_recovered": 60,
+    "exact_total": 60,
+    "learned_recovered": 3,
+    "learned_total": 60,
+    "learned_by_dimension": {
+      "1": [
+        {
+          "true_dimension": 1,
+          "successes": 3,
+          "total": 20,
+          "condition": "Trained-model recovery",
+          "estimate": 0.15,
+          "ci_low": 0.052368745896216595,
+          "ci_high": 0.3604188647407569
+        }
+      ],
+      "2": [
+        {
+          "true_dimension": 2,
+          "successes": 0,
+          "total": 20,
+          "condition": "Trained-model recovery",
+          "estimate": 0,
+          "ci_low": 0,
+          "ci_high": 0.1611251580528193
+        }
+      ],
+      "4": [
+        {
+          "true_dimension": 4,
+          "successes": 0,
+          "total": 20,
+          "condition": "Trained-model recovery",
+          "estimate": 0,
+          "ci_low": 0,
+          "ci_high": 0.1611251580528193
+        }
+      ]
+    },
+    "all_finite_r2_pass": true,
+    "all_finite_sign_pass": true
+  },
+  "human_prediction": {
+    "participants": 109,
+    "common_events": 73219,
+    "equivalent_architecture_ensembles": 0,
+    "best_architecture_ensemble": {
+      "specification": "gru_h16",
+      "architecture": "gru",
+      "hidden_dimension": 16,
+      "estimate": 0.025222920075247807,
+      "ci_low": 0.022961169109025258,
+      "ci_high": 0.02756944646539165,
+      "confidence_level": 0.9,
+      "n_participants": 109,
+      "bootstrap_replicates": 2000,
+      "equivalence_margin": 0.005,
+      "equivalent": false
+    }
+  }
+}
